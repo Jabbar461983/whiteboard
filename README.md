@@ -15,7 +15,7 @@ Digitales Whiteboard für Workshops: Mitarbeitende erfassen per Smartphone (QR-C
 2. Board auf den Beamer, «Mehr → QR-Code gross anzeigen».
 3. Mitarbeitende scannen, geben einmal ihren Namen ein, wählen Pro/Kontra und senden.
 4. Karten anklicken, um sie zu bearbeiten, umzufärben oder zu löschen (Rückgängig möglich).
-5. «PDF exportieren» → im Druckdialog «Als PDF sichern» wählen. Tipp: «Hintergrundgrafiken» aktivieren, damit die Farben mitgedruckt werden.
+5. «PDF exportieren» lädt direkt ein farbiges PDF herunter: das ganze Board auf einer A4-Seite (quer). Bei vielen Karten werden die Spalten automatisch enger angeordnet.
 
 Wer den **Board-Link** hat («Mehr → Board-Link kopieren»), kann Titel und Karten bearbeiten. Der QR-Code führt auf die Erfassungsansicht.
 

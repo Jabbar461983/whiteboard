@@ -137,6 +137,18 @@ dialog::backdrop{background:rgba(33,33,33,.45)}
 .mine .ca button{min-height:40px;padding:0 12px;border:0;background:transparent;text-decoration:underline;cursor:pointer;font-size:14px}
 
 .printhead,.printfoot{display:none}
+.export{position:absolute;left:-30000px;top:0;width:1600px;padding:44px 48px 48px;background:#fff;color:var(--charcoal)}
+.export .eh{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;border-bottom:1px solid var(--charcoal);padding-bottom:14px;margin-bottom:26px}
+.export h1{font-weight:300;font-size:40px;line-height:1.1;margin:0;overflow-wrap:anywhere}
+.export .eh span{font-size:18px;color:var(--granite);white-space:nowrap}
+.export .ec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px}
+.export h2{display:flex;align-items:center;gap:12px;font-weight:300;font-size:28px;margin:0 0 16px}
+.export h2 .dot{width:16px;height:16px;border-radius:50%}
+.export .pro h2 .dot{background:var(--pro)}.export .con h2 .dot{background:var(--con)}
+.export h2 .n{margin-left:auto;font-size:18px;color:var(--granite)}
+.export .cards{grid-template-columns:repeat(var(--k,2),minmax(0,1fr));gap:12px}
+.export .card{min-height:0;box-shadow:none;transform:none;animation:none;padding:14px 14px 10px;font-size:18px;gap:10px;cursor:default}
+.export .card .who{font-size:14px}
 
 @media(max-width:900px){.head{grid-template-columns:minmax(0,1fr)}.qr{justify-self:start}}
 @media(max-width:700px){.cols{grid-template-columns:minmax(0,1fr)}.topbar .hide-s{display:none}.qr{grid-template-columns:100px minmax(0,1fr)}.qr svg{width:100px;height:100px}}
@@ -151,7 +163,6 @@ dialog::backdrop{background:rgba(33,33,33,.45)}
   .printhead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;border-bottom:1px solid var(--charcoal);padding-bottom:8px;margin-bottom:14px}
   .printhead h1{font-weight:300;font-size:22pt;line-height:1.1;margin:0}
   .printhead span{font-size:10pt;color:var(--granite);white-space:nowrap}
-  .printfoot{display:block;margin-top:12px;font-size:8.5pt;color:var(--granite)}
   .board{background:#fff;padding:0;min-height:0}
   .wrap{max-width:none;padding:0}
   .cols{gap:8mm}
@@ -221,7 +232,6 @@ dialog::backdrop{background:rgba(33,33,33,.45)}
       <section class="col pro"><h2><span class="dot"></span>Pro<span class="n" id="npro"></span></h2><div class="cards" id="cpro"></div></section>
       <section class="col con"><h2><span class="dot"></span>Kontra<span class="n" id="ncon"></span></h2><div class="cards" id="ccon"></div></section>
     </div>
-    <div class="printfoot" id="pfoot"></div>
   </div></main>
   <input type="file" id="file" accept=".json,application/json" hidden>
 </template>
@@ -2758,7 +2768,6 @@ function renderBoard() {
   cards.forEach(c => seen.add(c.id)); first = false;
   $('#ptitle').textContent = S.title.val || 'Pro & Kontra';
   $('#pmeta').textContent = `${fmtDate(Date.now())} · ${pro.length} Pro · ${con.length} Kontra`;
-  $('#pfoot').textContent = `Exportiert am ${fmtDate(Date.now())}, ${fmtTime(Date.now())} Uhr`;
 }
 function initBoard() {
   $('#app').append($('#t-board').content.cloneNode(true));
@@ -2767,7 +2776,7 @@ function initBoard() {
   const commit = () => { const v = ti.value.trim(); if (v !== S.title.val) publish({t: 'title', val: v, v: Date.now(), by: CID}); };
   ti.onchange = commit; ti.oninput = () => fit(ti); addEventListener('resize', () => fit(ti)); ti.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); ti.blur(); } };
   $('#add').onclick = () => openDlg();
-  $('#pdf').onclick = () => { commit(); renderBoard(); window.print(); };
+  $('#pdf').onclick = () => { commit(); renderBoard(); exportPDF(); };
   for (const box of [$('#cpro'), $('#ccon')]) box.onclick = e => { const el = e.target.closest('.card'); if (el && S.cards[el.dataset.id]) openDlg(S.cards[el.dataset.id]); };
   const pop = $('#pop'), more = $('#more');
   const close = () => { pop.hidden = true; more.setAttribute('aria-expanded', 'false'); };
@@ -2785,6 +2794,46 @@ function initBoard() {
       R = empty(); republish(false); toast(`${items.length} Einträge geladen`);
     } catch { toast('Datei konnte nicht gelesen werden'); }
   };
+}
+const loadJS = src => new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.append(s); });
+async function loadLibs() {
+  if (!window.html2canvas) await loadJS('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js').catch(() => loadJS('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'));
+  if (!window.jspdf) await loadJS('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js').catch(() => loadJS('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'));
+}
+// Ganzes Board als ein farbiges Bild auf eine A4-Seite (quer)
+async function exportPDF() {
+  const btn = $('#pdf'), label = btn.lastChild.textContent; btn.disabled = true; btn.lastChild.textContent = 'PDF wird erstellt …';
+  let ex;
+  try {
+    await loadLibs(); try { await document.fonts.ready; } catch {}
+    const cards = live(), pro = cards.filter(c => c.type === 'pro'), con = cards.filter(c => c.type === 'con'), title = S.title.val || 'Pro & Kontra';
+    ex = document.createElement('div'); ex.className = 'export';
+    ex.innerHTML = '<div class="eh"><h1></h1><span></span></div><div class="ec">' +
+      '<section class="pro"><h2><span class="dot"></span>Pro<span class="n"></span></h2><div class="cards"></div></section>' +
+      '<section class="con"><h2><span class="dot"></span>Kontra<span class="n"></span></h2><div class="cards"></div></section></div>';
+    ex.querySelector('h1').textContent = title;
+    ex.querySelector('.eh span').textContent = `${fmtDate(Date.now())} · ${pro.length} Pro · ${con.length} Kontra`;
+    for (const [sel, list] of [['.pro', pro], ['.con', con]]) {
+      const sec = ex.querySelector(sel); sec.querySelector('.n').textContent = list.length;
+      sec.querySelector('.cards').replaceChildren(...(list.length ? list.map(c => { const el = cardEl(c); const d = document.createElement('div'); d.className = el.className; d.append(...el.childNodes); return d; })
+        : [Object.assign(document.createElement('div'), {className: 'empty', textContent: 'Keine Karten'})]));
+    }
+    document.body.append(ex);
+    const ratio = 297 / 210;
+    for (const k of [2, 3, 4, 5, 6]) { ex.style.setProperty('--k', k); if (ex.offsetWidth / ex.offsetHeight >= ratio) break; }
+    ex.style.minHeight = Math.ceil(ex.offsetWidth / ratio) + 'px';
+    const canvas = await html2canvas(ex, {scale: 2, backgroundColor: '#ffffff', logging: false, useCORS: true, x: 0, y: 0, scrollX: 0, scrollY: 0,
+      onclone: doc => { const e = doc.querySelector('.export'); e.style.left = '0'; }});
+    const pdf = new window.jspdf.jsPDF({orientation: 'landscape', unit: 'mm', format: 'a4', compress: true});
+    const m = 8, iw = 297 - 2 * m, ih = 210 - 2 * m, r = canvas.width / canvas.height;
+    let w = iw, h = w / r; if (h > ih) { h = ih; w = h * r; }
+    pdf.setProperties({title});
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.93), 'JPEG', (297 - w) / 2, m, w, h);
+    pdf.save(`${title.replace(/[^\wäöüÄÖÜ-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'pro-kontra'}-${new Date().toISOString().slice(0, 10)}.pdf`);
+    toast('PDF erstellt');
+  } catch (e) {
+    toast('PDF-Erstellung nicht möglich – Druckansicht wird geöffnet'); setTimeout(() => window.print(), 400);
+  } finally { ex && ex.remove(); btn.disabled = false; btn.lastChild.textContent = label; }
 }
 const actions = {
   copyboard: () => copy(boardURL(), 'Board-Link'),
